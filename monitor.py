@@ -48,10 +48,12 @@ class ProjectWindow:
         self._build_ui()
         self._apply_light(status)
 
-        # Bindings
-        self.win.bind("<Button-1>", self._start_drag)
-        self.win.bind("<B1-Motion>", self._on_drag)
-        self.win.bind("<Button-3>", self._on_right_click)
+        # Bindings — drag only on "ui" items, close button has its own handler
+        self.win.bind("<Delete>", lambda e: self._close_self())
+        self.canvas.tag_bind("ui", "<Button-1>", self._start_drag)
+        self.canvas.tag_bind("ui", "<B1-Motion>", self._on_drag)
+        # Right-click on canvas (not on close button)
+        self.canvas.bind("<Button-3>", self._on_right_click)
 
     @property
     def lang(self):
@@ -77,9 +79,20 @@ class ProjectWindow:
             w // 2, 20, text=self.name, fill="#888888",
             font=("Microsoft YaHei UI", 9, "bold"), tags="ui"
         )
-        # Close X
-        self.canvas.create_text(w - 16, 20, text="X", fill="#555555",
-                                font=("Arial", 10), tags="ui")
+        # Close X button
+        close_tag = "close_btn"
+        self.canvas.create_rectangle(w - 26, 10, w - 4, 30,
+                                     fill="", outline="", tags=(close_tag,))
+        self._close_text = self.canvas.create_text(w - 15, 20, text="X", fill="#555555",
+                                                   font=("Arial", 10, "bold"),
+                                                   tags=(close_tag,))
+        # Hover effects for close button
+        self.canvas.tag_bind(close_tag, "<Enter>",
+                             lambda e: self.canvas.itemconfig(self._close_text, fill="#ff4444"))
+        self.canvas.tag_bind(close_tag, "<Leave>",
+                             lambda e: self.canvas.itemconfig(self._close_text, fill="#555555"))
+        self.canvas.tag_bind(close_tag, "<Button-1>",
+                             lambda e: self._close_self())
         # Separator
         self.canvas.create_line(10, 34, w - 10, 34, fill="#222222", tags="ui")
 
@@ -124,11 +137,6 @@ class ProjectWindow:
             cx, h - 12, text="", fill="#444444",
             font=("Microsoft YaHei UI", 7), tags="ui"
         )
-
-        # Click handlers on canvas
-        self.canvas.tag_bind("ui", "<Button-1>", self._start_drag)
-        self.canvas.tag_bind("ui", "<B1-Motion>", self._on_drag)
-        self.canvas.tag_bind("ui", "<Button-3>", self._on_right_click)
 
     # ── Light Drawing ─────────────────────────────────────────────────
 
@@ -273,6 +281,11 @@ class ProjectWindow:
             self._cd_timer = None
 
     # ── Close ─────────────────────────────────────────────────────────
+
+    def _close_self(self):
+        """Close just this one window and remove its project."""
+        self._cancel_countdown()
+        self.monitor.remove_project(self.name)
 
     def destroy(self):
         self._cancel_countdown()
