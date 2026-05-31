@@ -1,46 +1,54 @@
 # Traffic Light Desktop Monitor
 
-> Real-time project status monitor — independent traffic light window per project
+> AI-powered real-time status monitor — light changes automatically with Claude Code state
 
-Each project gets its own **always-on-top** floating window with a classic traffic light display:
+Each project gets its own **always-on-top** floating window. The light color is **auto-controlled by Claude Code hooks** — no manual input needed.
 
-| Light | Status | Color |
-|-------|--------|-------|
-| Blue | Idle | `#3399ff` |
-| Yellow | Working | `#ffcc00` |
-| Green | Complete | `#00ff44` |
+| Light | Status | Color | When |
+|-------|--------|-------|------|
+| Blue | Idle | `#3399ff` | Claude waiting for your input |
+| Yellow | Working | `#ffcc00` | Claude processing your request |
+| Green | Complete | `#00ff44` | Task done (5s auto-close) |
 
 ## Preview
 
 ```
- Single project (140x380)        Multi-project grid
-+------------+                +------------+ +------------+
-| default  X |                | default  X | | backend  X |
-|------------|                |------------| |------------|
-|  default   |                |            | |            |
-|            |                |   (blue)   | |   (blue)   |
-| (  blue  ) | <-- Idle       |            | |            |
-|            |                |            | |            |
-| ( yellow ) | <-- Working    |  (yellow)  | | ( yellow ) |
-|            |                |            | |            |
-| ( green  ) | <-- Complete   |            | |            |
-|            |                |  (green)   | | ( green  ) |
-|   Idle     |                |            | |            |
-|------------|                |  Working   | |   Idle     |
-| 1 projects |                |------------| |------------|
-+------------+                +------------+ +------------+
-
- Keyboard shortcuts visible at bottom of each window
+ Single project (140x380)
++------------+
+| default  X |
+|------------|
+|            |
+|   (blue)   |  <-- Idle: waiting for you
+|            |
+|  (yellow)  |  <-- Working: processing
+|            |
+|  (green)   |  <-- Complete: task done
+|            |
+|   Idle     |
+|------------|
+| 1 projects |
++------------+
 ```
+
+## AI Auto-Control (Claude Code Hooks)
+
+The light changes **automatically** based on Claude Code's state:
+
+| Hook | Trigger | Action |
+|------|---------|--------|
+| `PreToolUse` | Claude executes any tool | Blue → Yellow |
+| `Stop` | Claude finishes, waits for input | Yellow → Blue |
+
+Setup: copy `claude-settings.example.json` to `~/.claude/settings.json` and update the paths, or merge with your existing settings.
 
 ## Features
 
+- **AI-Controlled**: Status auto-updates via Claude Code hooks — hands-free
 - **Multi-Window**: Each project = one independent traffic light window
-- **Auto-Detect**: New projects appear automatically via file polling
+- **Auto-Detect**: New projects appear automatically via 1-second file polling
 - **Auto-Cleanup**: Completed projects auto-close after 5-second countdown
-- **Keyboard Shortcuts**: `[1]` Idle `[2]` Work `[3]` Done `[Del]` Close `[L]` Lang `[A]` Boot
-- **Bilingual**: Chinese / English toggle (CLI + GUI)
-- **Boot Auto-Start**: `python status_updater.py autostart on` to launch at login
+- **Bilingual**: Chinese / English toggle (CLI + right-click menu)
+- **Boot Auto-Start**: `python status_updater.py autostart on` for Windows startup
 - **Always-on-Top**: Windows stay visible above other apps
 - **Draggable**: Click and drag to reposition each window
 
@@ -48,6 +56,7 @@ Each project gets its own **always-on-top** floating window with a classic traff
 
 - Python 3.7+
 - tkinter (included with Python on Windows/macOS)
+- Claude Code (for AI auto-control)
 
 ## Quick Start
 
@@ -59,10 +68,7 @@ cd -traffic-light-assistant
 # Launch the multi-window monitor
 python monitor.py
 
-# Set a project status from CLI
-python status_updater.py working -a "My Project"
-python status_updater.py done -a "My Project"    # Auto-closes after 5s
-python status_updater.py idle -a "My Project"
+# Auto-control: configure Claude Code hooks (see claude-settings.example.json)
 ```
 
 Or double-click **`run.bat`** on Windows.
@@ -70,7 +76,7 @@ Or double-click **`run.bat`** on Windows.
 ## CLI Commands
 
 ```bash
-# Set status
+# Set status (optional — normally auto-controlled by hooks)
 python status_updater.py idle          # Blue light (idle)
 python status_updater.py working       # Yellow light (working)
 python status_updater.py done          # Green light (complete, auto-remove 5s)
@@ -79,7 +85,7 @@ python status_updater.py done          # Green light (complete, auto-remove 5s)
 python status_updater.py working --agent "Frontend"
 python status_updater.py done -a "Backend"
 
-# List all projects (with hierarchy)
+# List all projects
 python status_updater.py list
 python status_updater.py list -l zh    # Chinese output
 
@@ -96,26 +102,15 @@ python status_updater.py autostart      # Check status
 
 | Action | How |
 |--------|-----|
-| Switch status | Right-click → select, or keyboard `[1]`/`[2]`/`[3]` |
-| Close window | Click `X`, press `Delete`/`Esc`, or right-click → Remove |
-| Toggle language | Press `[L]` or right-click → language toggle |
-| Toggle auto-start | Press `[A]` or right-click → auto-start toggle |
-| Move window | Click and drag anywhere on the window |
-
-## Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `1` / `I` | Idle (blue) |
-| `2` / `W` | Working (yellow) |
-| `3` / `D` | Complete (green) |
-| `Delete` / `Esc` | Close window |
-| `L` | Switch language |
-| `A` | Toggle boot auto-start |
+| Switch status (manual) | Right-click → select status |
+| Close window | Click `X` or right-click → Remove |
+| Toggle language | Right-click → language toggle |
+| Toggle auto-start | Right-click → auto-start toggle |
+| Move window | Click and drag anywhere |
 
 ## Status File
 
-Monitor reads `~/.claude/desk_assistant_status.json` every second:
+Monitor reads `~/.claude/desk_assistant_status.json`:
 
 ```json
 {
@@ -123,13 +118,7 @@ Monitor reads `~/.claude/desk_assistant_status.json` every second:
     "Frontend": {
       "status": "working",
       "timestamp": "2026-05-31T12:00:00",
-      "source": "status_updater_cli",
-      "parent": null
-    },
-    "Backend": {
-      "status": "idle",
-      "timestamp": "2026-05-31T12:01:00",
-      "source": "status_updater_cli",
+      "source": "claude_hook",
       "parent": null
     }
   }
@@ -140,29 +129,12 @@ Monitor reads `~/.claude/desk_assistant_status.json` every second:
 
 | File | Description |
 |------|-------------|
-| `monitor.py` | **Main** — multi-window monitor with all features |
+| `monitor.py` | **Main** — multi-window monitor |
 | `status_updater.py` | CLI tool — set/list/remove/autostart |
-| `config.py` | Shared constants, file I/O, i18n, tree logic |
-| `traffic_light.py` | Legacy tree-mode GUI (use `monitor.py` instead) |
+| `config.py` | Shared constants, file I/O, i18n |
+| `traffic_light.py` | Legacy tree-mode GUI |
 | `run.bat` | Windows quick-launch |
-
-## Auto-Start with Claude Code
-
-Add to `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "SessionStart": [{
-      "hooks": [{
-        "type": "command",
-        "command": "python \"path/to/monitor.py\" 2>&1 &",
-        "timeout": 5
-      }]
-    }]
-  }
-}
-```
+| `claude-settings.example.json` | Claude Code hooks setup |
 
 ## License
 

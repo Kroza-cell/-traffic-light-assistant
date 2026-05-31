@@ -1,0 +1,40 @@
+{
+  "_comment": "Copy this to ~/.claude/settings.json and update paths",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"PATH_TO_PROJECT\\monitor.py\" 2>&1 &",
+            "timeout": 5,
+            "statusMessage": "Starting traffic light monitor..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|Read|Glob|Grep|WebFetch|WebSearch|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"PATH_TO_PROJECT\\status_updater.py\" working -a default 2>&1",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"PATH_TO_PROJECT\\status_updater.py\" idle -a default 2>&1",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}
