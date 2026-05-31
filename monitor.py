@@ -387,7 +387,10 @@ class MultiWindowMonitor:
     def toggle_language(self):
         self.lang = "en" if self.lang == "zh" else "zh"
         cfg.save_lang(self.lang)
-        # Recreate all windows to update text
+        # Defer rebuild to avoid destroying windows inside menu callback
+        self.root.after(100, self._rebuild_all_windows)
+
+    def _rebuild_all_windows(self):
         for name in list(self.windows.keys()):
             self._close_window(name)
         self._sync()
@@ -399,11 +402,26 @@ class MultiWindowMonitor:
         current = cfg.get_autostart_status()
         ok = cfg.set_autostart(not current)
         if ok:
-            lang = self.lang
-            if not current:
-                print(f"[OK] {cfg.t('autostart_enabled', lang)}")
-            else:
-                print(f"[OK] {cfg.t('autostart_disabled', lang)}")
+            new_state = not current
+            # Update status text in all windows to show confirmation
+            for pw in self.windows.values():
+                status_text = self._("autostart_on") if new_state else self._("autostart_off")
+                try:
+                    pw.canvas.itemconfig(pw._bar_text, text=status_text,
+                                         fill="#ffcc00" if new_state else "#888888")
+                    # Restore normal bar text after 2 seconds
+                    pw.win.after(2000, lambda w=pw: self._restore_status_bar(w))
+                except Exception:
+                    pass
+
+    def _restore_status_bar(self, pw):
+        try:
+            n = self.project_count()
+            active_n = self.working_count()
+            pw.canvas.itemconfig(pw._bar_text, text=self._("status_bar", n=n, active_count=active_n),
+                                 fill="#444444")
+        except Exception:
+            pass
 
     # ── Reposition ────────────────────────────────────────────────────
 
