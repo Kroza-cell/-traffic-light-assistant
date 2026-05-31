@@ -182,6 +182,13 @@ BIG_GLOW1_R          = 28
 BIG_GLOW2_R          = 24
 BIG_CORE_R           = 20
 
+# ── Multi-window positioning ───────────────────────────────────────────
+WINDOW_SPACING_X  = 160     # horizontal gap between windows (+ window width)
+WINDOW_SPACING_Y   = 400    # vertical gap when wrapping rows
+WINDOWS_PER_ROW    = 4      # max windows per row before wrapping
+WINDOW_START_X     = 100    # first window x
+WINDOW_START_Y     = 100    # first window y
+
 # ── Auto-remove ─────────────────────────────────────────────────────────
 AUTO_REMOVE_DELAY = 5       # seconds before auto-removing done children
 AUTO_REMOVE_TICK  = 1000    # ms between countdown updates
