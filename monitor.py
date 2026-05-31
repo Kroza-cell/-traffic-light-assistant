@@ -50,6 +50,16 @@ class ProjectWindow:
 
         # Bindings
         self.win.bind("<Delete>", lambda e: self._close_self())
+        # Keyboard shortcuts (work when window has focus — click to focus)
+        self.win.bind("<KeyPress-1>", lambda e: self.set_status("idle"))
+        self.win.bind("<KeyPress-2>", lambda e: self.set_status("working"))
+        self.win.bind("<KeyPress-3>", lambda e: self.set_status("done"))
+        self.win.bind("<KeyPress-i>", lambda e: self.set_status("idle"))
+        self.win.bind("<KeyPress-w>", lambda e: self.set_status("working"))
+        self.win.bind("<KeyPress-d>", lambda e: self.set_status("done"))
+        self.win.bind("<KeyPress-l>", lambda e: self.monitor.toggle_language())
+        self.win.bind("<KeyPress-a>", lambda e: self.monitor.toggle_autostart())
+        self.win.bind("<KeyPress-Escape>", lambda e: self._close_self())
         # Right-click: bind to both window and canvas for robustness
         self.win.bind("<Button-3>", self._on_right_click)
         self.canvas.bind("<Button-3>", self._on_right_click)
@@ -138,8 +148,13 @@ class ProjectWindow:
         # Bottom status bar
         self.canvas.create_line(10, h - 25, w - 10, h - 25, fill="#222222", tags="ui")
         self._bar_text = self.canvas.create_text(
-            cx, h - 12, text="", fill="#444444",
+            cx, h - 18, text="", fill="#444444",
             font=("Microsoft YaHei UI", 7), tags="ui"
+        )
+        # Key hints (subtle, below bar)
+        self._key_hint = self.canvas.create_text(
+            cx, h - 6, text="[1]Idle [2]Work [3]Done | Del/Esc=Close | A=Start | L=Lang",
+            fill="#252525", font=("Microsoft YaHei UI", 5), tags="ui"
         )
 
     # ── Light Drawing ─────────────────────────────────────────────────
@@ -227,27 +242,28 @@ class ProjectWindow:
         menu.add_command(label=f"Project: {self.name}",
                          state="disabled", disabledforeground="#888888")
         menu.add_separator()
-        menu.add_command(label=self._("set_idle"),
+        menu.add_command(label=self._("set_idle") + "     [1]",
                          command=lambda: self.set_status("idle"))
-        menu.add_command(label=self._("set_working"),
+        menu.add_command(label=self._("set_working") + "   [2]",
                          command=lambda: self.set_status("working"))
-        menu.add_command(label=self._("set_complete"),
+        menu.add_command(label=self._("set_complete") + "   [3]",
                          command=lambda: self.set_status("done"))
         menu.add_separator()
-        menu.add_command(label=self._("lang_toggle"),
+        menu.add_command(label=self._("lang_toggle") + "     [L]",
                          command=self.monitor.toggle_language)
         menu.add_separator()
         if cfg.get_autostart_status():
-            menu.add_command(label=self._("autostart_disable"),
+            menu.add_command(label=self._("autostart_disable") + "   [A]",
                              command=self.monitor.toggle_autostart)
         else:
-            menu.add_command(label=self._("autostart_enable"),
+            menu.add_command(label=self._("autostart_enable") + "    [A]",
                              command=self.monitor.toggle_autostart)
         menu.add_separator()
-        menu.add_command(label=self._("remove_project"),
+        menu.add_command(label=self._("remove_project") + "     [Del]",
                          command=lambda: self.monitor.remove_project(self.name))
         menu.add_separator()
-        menu.add_command(label=self._("exit"), command=self.monitor.shutdown)
+        menu.add_command(label=self._("exit") + "     [Esc]",
+                         command=self.monitor.shutdown)
         menu.post(event.x_root, event.y_root)
 
     # ── Status Control ────────────────────────────────────────────────
