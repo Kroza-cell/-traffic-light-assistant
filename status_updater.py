@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Claude Multi-Agent Status Updater — set work status from command line.
+Claude Project Status Updater — set work status from command line.
 Supports Chinese (zh) / English (en) output.
 
 Usage:
-  python status_updater.py <status> [-a AGENT] [-l zh|en]
+  python status_updater.py <status> [-a PROJECT] [-l zh|en]
   python status_updater.py list [-l zh|en]
   python status_updater.py remove <name> [-l zh|en]
 
@@ -27,10 +27,9 @@ import config as cfg
 
 
 def parse_args(argv):
-    """Simple arg parser — no stdlib dependency."""
     args = {
         "status": None,
-        "agent": cfg.DEFAULT_AGENT,
+        "project": cfg.DEFAULT_PROJECT,
         "command": None,
         "target": None,
         "lang": cfg.load_lang(),
@@ -40,12 +39,12 @@ def parse_args(argv):
     positional = []
     while i < len(argv):
         a = argv[i]
-        if a in ("-a", "--agent"):
+        if a in ("-a", "--agent", "-p", "--project"):
             if i + 1 < len(argv):
-                args["agent"] = argv[i + 1]
+                args["project"] = argv[i + 1]
                 i += 2
             else:
-                print(cfg.t("err_agent_required", args["lang"]))
+                print(cfg.t("err_project_required", args["lang"]))
                 sys.exit(1)
         elif a in ("-l", "--lang"):
             if i + 1 < len(argv):
@@ -86,42 +85,40 @@ def parse_args(argv):
 def print_help(lang: str = "zh"):
     print(__doc__)
     print(cfg.t("options", lang))
-    print(cfg.t("opt_agent", lang))
+    print(cfg.t("opt_project", lang))
     print(cfg.t("opt_lang", lang))
     print("  -h, --help         Show this help")
 
 
-def cmd_set(status, agent_name, lang):
-    """Set an agent's status."""
+def cmd_set(status, name, lang):
     try:
-        cfg.update_agent_status(agent_name, status, source="status_updater_cli")
+        cfg.update_project_status(name, status, source="status_updater_cli")
     except ValueError as e:
         print(f"[ERROR] {e}")
         sys.exit(1)
 
     light_name = cfg.STATUS_TO_ACTIVE[status]
     label = cfg.status_label(status, lang)
-    agent_text = cfg.t("agent_label", lang)
+    proj_text = cfg.t("project_label", lang)
     status_text = cfg.t("status_updated", lang)
-    print(f"[{light_name.upper()}] {agent_text} '{agent_name}' {status_text}: {label}")
+    print(f"[{light_name.upper()}] {proj_text} '{name}' {status_text}: {label}")
 
 
 def cmd_list(lang):
-    """List all registered agents."""
-    agents = cfg.read_status_file()
-    if not agents:
+    projects = cfg.read_status_file()
+    if not projects:
         print(cfg.t("list_no_registered", lang))
         print(cfg.t("list_create_hint", lang))
         return
 
-    col_agent = cfg.t("list_col_agent", lang)
+    col_proj = cfg.t("list_col_project", lang)
     col_status = cfg.t("list_col_status", lang)
     col_light = cfg.t("list_col_light", lang)
     col_updated = cfg.t("list_col_updated", lang)
 
-    print(f"{col_agent:<20} {col_status:<10} {col_light:<8} {col_updated}")
+    print(f"{col_proj:<20} {col_status:<10} {col_light:<8} {col_updated}")
     print("-" * 65)
-    for name, data in sorted(agents.items()):
+    for name, data in sorted(projects.items()):
         status = data.get("status", "?")
         light = cfg.STATUS_TO_ACTIVE.get(status, "?")
         label = cfg.status_label(status, lang)
@@ -129,13 +126,12 @@ def cmd_list(lang):
         print(f"{name:<20} {label:<10} {light:<8} {ts}")
 
 
-def cmd_remove(agent_name, lang):
-    """Remove an agent."""
-    ok = cfg.remove_agent(agent_name)
+def cmd_remove(name, lang):
+    ok = cfg.remove_project(name)
     if ok:
-        print(f"{cfg.t('removed_ok', lang)} {agent_name}")
+        print(f"{cfg.t('removed_ok', lang)} {name}")
     else:
-        print(f"{cfg.t('removed_not_found', lang)} {agent_name}")
+        print(f"{cfg.t('removed_not_found', lang)} {name}")
 
 
 def main():
@@ -156,7 +152,7 @@ def main():
     elif args["command"] == "remove":
         cmd_remove(args["target"], args["lang"])
     elif args["status"]:
-        cmd_set(args["status"], args["agent"], args["lang"])
+        cmd_set(args["status"], args["project"], args["lang"])
     else:
         print(cfg.t("err_no_command", args["lang"]))
         print_help(args["lang"])

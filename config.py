@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Shared config and file I/O for the multi-agent traffic light assistant.
+Shared config and file I/O for the multi-project traffic light assistant.
 
 Status file: ~/.claude/desk_assistant_status.json
 
-New format (multi-agent):
-  {"agents": {"agent_name": {"status": "idle|working|done", "timestamp": "...", "source": "..."}}}
+Format (multi-project):
+  {"projects": {"name": {"status": "idle|working|done", "timestamp": "...", "source": "..."}}}
 
-Old format (single-agent, auto-migrated on read):
-  {"status": "idle", "timestamp": "...", "source": "..."}
+Old formats auto-migrated on read:
+  - {"agents": {...}}                          (renamed key)
+  - {"status": "idle", "timestamp": "...", ...} (single-agent v1)
 """
 
 import json
@@ -23,112 +24,123 @@ LANG_FILE   = Path.home() / ".claude" / "desk_assistant_lang.json"
 
 VALID_STATUSES = {"idle", "working", "done"}
 
-DEFAULT_AGENT = "default"
+DEFAULT_PROJECT = "default"
+DEFAULT_AGENT   = DEFAULT_PROJECT  # backward compat alias
 
 # ── Bilingual text resources ─────────────────────────────────────────────
 
 TEXTS = {
     "zh": {
-        "title": "Claude 状态",
+        # Title bar
+        "title_single": "{}",
+        "title_multi": "项目",
+        # Status labels
         "idle": "空闲",
         "working": "工作中",
         "complete": "已完成",
-        "no_agents": "暂无 Agent",
+        # Empty state
+        "no_projects": "暂无项目",
         "click_add": '点 "+" 添加',
-        "agent_header": "Agent:",
-        "add_agent": "添加 Agent...",
-        "add_agent_title": "添加 Agent",
-        "add_agent_prompt": "Agent 名称:",
-        "remove_agent": "删除 Agent...",
-        "remove_agent_title": "删除 Agent",
+        # Menus
+        "project_header": "项目:",
+        "add_project": "添加项目...",
+        "add_project_title": "添加项目",
+        "add_project_prompt": "项目名称:",
+        "remove_project": "删除项目...",
+        "remove_project_title": "删除项目",
         "remove_confirm": '确认删除 "{}"?',
         "remove_btn": "删除",
         "cancel_btn": "取消",
         "exit": "退出",
-        "status_bar": "{} 个 Agent | {} 个工作中",
+        "status_bar": "{} 个项目 | {} 个工作中",
         "set_idle": "[空闲] 设为空闲",
         "set_working": "[工作中] 设为工作中",
         "set_complete": "[已完成] 设为已完成",
         "lang_toggle": "切换 English",
-        "status_file_label": "状态文件:",
+        # CLI
+        "list_title": "=== Claude 项目状态监控 ===",
+        "list_no_registered": "还没有注册的项目。",
+        "list_create_hint": "创建方法: python status_updater.py idle  (创建默认项目)",
+        "list_col_project": "项目",
+        "list_col_status": "状态",
+        "list_col_light": "灯光",
+        "list_col_updated": "更新时间",
+        "removed_ok": "项目已删除:",
+        "removed_not_found": "项目不存在:",
+        "err_project_required": "[错误] --project 需要指定名称",
+        "err_unknown_cmd": "[错误] 未知命令/状态:",
+        "err_no_command": "[错误] 没有指定命令",
+        "status_updated": "状态已更新",
+        "project_label": "项目",
         "usage": "用法:",
         "positional_status": "[idle|working|done]",
         "positional_command": "[list|remove]",
         "options": "选项:",
-        "opt_agent": "  -a, --agent NAME   目标 Agent 名称",
+        "opt_project": "  -a, --agent NAME   目标项目名称",
         "opt_lang": "  -l, --lang zh|en   输出语言",
-        "list_title": "=== Claude 多 Agent 状态监控 ===",
-        "list_no_registered": "还没有注册的 Agent。",
-        "list_create_hint": "创建方法: python status_updater.py idle  (创建默认 Agent)",
-        "list_col_agent": "Agent",
-        "list_col_status": "状态",
-        "list_col_light": "灯光",
-        "list_col_updated": "更新时间",
-        "removed_ok": "Agent 已删除:",
-        "removed_not_found": "Agent 不存在:",
-        "err_agent_required": "[错误] --agent 需要指定名称",
-        "err_unknown_cmd": "[错误] 未知命令/状态:",
-        "err_no_command": "[错误] 没有指定命令",
-        "err_invalid_status": "[错误] 无效状态:",
-        "err_valid_values": "  有效值:",
-        "status_updated": "状态已更新",
-        "agent_label": "Agent",
-        "remove_agent_cli": "删除 Agent",
+        "light_idle": "空闲",
+        "light_working": "工作中",
+        "light_complete": "已完成",
     },
     "en": {
-        "title": "Claude Agents",
+        # Title bar
+        "title_single": "{}",
+        "title_multi": "Projects",
+        # Status labels
         "idle": "Idle",
         "working": "Working",
         "complete": "Complete",
-        "no_agents": "No agents",
+        # Empty state
+        "no_projects": "No projects",
         "click_add": 'Click "+" to add',
-        "agent_header": "Agent:",
-        "add_agent": "Add Agent...",
-        "add_agent_title": "Add Agent",
-        "add_agent_prompt": "Agent name:",
-        "remove_agent": "Remove Agent...",
-        "remove_agent_title": "Remove Agent",
+        # Menus
+        "project_header": "Project:",
+        "add_project": "Add Project...",
+        "add_project_title": "Add Project",
+        "add_project_prompt": "Project name:",
+        "remove_project": "Remove Project...",
+        "remove_project_title": "Remove Project",
         "remove_confirm": 'Remove "{}"?',
         "remove_btn": "Remove",
         "cancel_btn": "Cancel",
         "exit": "Exit",
-        "status_bar": "{} agent(s) | {} working",
+        "status_bar": "{} project(s) | {} working",
         "set_idle": "[IDLE]  Set Idle",
         "set_working": "[WORK] Set Working",
         "set_complete": "[DONE] Set Complete",
         "lang_toggle": "Switch to 中文",
-        "status_file_label": "Status File:",
+        # CLI
+        "list_title": "=== Claude Project Status Monitor ===",
+        "list_no_registered": "No projects registered yet.",
+        "list_create_hint": "Create: python status_updater.py idle  (creates default project)",
+        "list_col_project": "Project",
+        "list_col_status": "Status",
+        "list_col_light": "Light",
+        "list_col_updated": "Updated",
+        "removed_ok": "Removed project:",
+        "removed_not_found": "Project not found:",
+        "err_project_required": "[ERROR] --project requires a name",
+        "err_unknown_cmd": "[ERROR] Unknown command/status:",
+        "err_no_command": "[ERROR] No command given",
+        "status_updated": "Status updated",
+        "project_label": "Project",
         "usage": "Usage:",
         "positional_status": "[idle|working|done]",
         "positional_command": "[list|remove]",
         "options": "Options:",
-        "opt_agent": "  -a, --agent NAME   Target agent name",
+        "opt_project": "  -a, --agent NAME   Target project name",
         "opt_lang": "  -l, --lang zh|en   Output language",
-        "list_title": "=== Claude Multi-Agent Status Monitor ===",
-        "list_no_registered": "No agents registered yet.",
-        "list_create_hint": "Create: python status_updater.py idle  (creates default agent)",
-        "list_col_agent": "Agent",
-        "list_col_status": "Status",
-        "list_col_light": "Light",
-        "list_col_updated": "Updated",
-        "removed_ok": "Removed agent:",
-        "removed_not_found": "Agent not found:",
-        "err_agent_required": "[ERROR] --agent requires a name",
-        "err_unknown_cmd": "[ERROR] Unknown command/status:",
-        "err_no_command": "[ERROR] No command given",
-        "err_invalid_status": "[ERROR] Invalid status:",
-        "err_valid_values": "  Valid:",
-        "status_updated": "Status updated",
-        "agent_label": "Agent",
-        "remove_agent_cli": "Remove Agent",
+        "light_idle": "Idle",
+        "light_working": "Working",
+        "light_complete": "Complete",
     },
 }
 
-# light_name -> label key in TEXTS
+# light_name -> text key
 LIGHT_LABEL_KEY = {
-    "red":    "idle",
-    "yellow": "working",
-    "green":  "complete",
+    "red":    "light_idle",
+    "yellow": "light_working",
+    "green":  "light_complete",
 }
 
 # status -> light_name
@@ -151,10 +163,29 @@ STATUS_COLORS = {
     "done":    "#00ff44",
 }
 
-# GUI dimensions
-WINDOW_WIDTH  = 230
-CARD_HEIGHT   = 60
-BASE_HEIGHT   = 80   # title bar + bottom margin
+LIGHT_CONFIG = {
+    "red":    {"active": "#ff1a1a", "dim": "#2a0000", "glow": "#ff4444"},
+    "yellow": {"active": "#ffcc00", "dim": "#2a2000", "glow": "#ffee44"},
+    "green":  {"active": "#00ff44", "dim": "#002a00", "glow": "#44ff66"},
+}
+
+# ── GUI dimensions ──────────────────────────────────────────────────────
+
+# Multi-project (card list) mode
+CARD_WINDOW_WIDTH = 230
+CARD_HEIGHT       = 60
+CARD_BASE_HEIGHT  = 80
+
+# Single-project (big light) mode
+SINGLE_WINDOW_WIDTH  = 140
+SINGLE_WINDOW_HEIGHT = 360
+BIG_LIGHT_TOP        = 10    # y offset for first light
+BIG_LIGHT_SPACING    = 80    # vertical gap between lights
+BIG_LIGHT_CY_OFFSET  = 38    # circle center offset from top of each light area
+BIG_RING_R           = 32    # outer ring radius
+BIG_GLOW1_R          = 28    # glow layer 1
+BIG_GLOW2_R          = 24    # glow layer 2
+BIG_CORE_R           = 20    # core light
 
 
 # ── Language helpers ────────────────────────────────────────────────────
@@ -195,25 +226,28 @@ def status_label(status: str, lang: str = None) -> str:
 
 def light_label(light_name: str, lang: str = None) -> str:
     """Get display label for a light color name."""
-    key = LIGHT_LABEL_KEY.get(light_name, "idle")
+    key = LIGHT_LABEL_KEY.get(light_name, "light_idle")
     return t(key, lang)
-
-
-# Keep for backward compatibility with old code references
-LIGHT_CONFIG = {
-    "red":    {"active": "#ff1a1a", "dim": "#2a0000", "glow": "#ff4444", "label": "Idle"},
-    "yellow": {"active": "#ffcc00", "dim": "#2a2000", "glow": "#ffee44", "label": "Working"},
-    "green":  {"active": "#00ff44", "dim": "#002a00", "glow": "#44ff66", "label": "Complete"},
-}
 
 
 # ── File I/O ──────────────────────────────────────────────────────────────
 
+def _normalize_key(data: dict) -> dict:
+    """Normalize old keys to new 'projects' key. Mutates in place."""
+    if "projects" in data:
+        return data
+    if "agents" in data:
+        # v2 format using old key name
+        data["projects"] = data.pop("agents")
+        return data
+    return data
+
+
 def read_status_file() -> dict[str, dict]:
     """
     Read and parse the status file.
-    Returns: {"agent_name": {"status": ..., "timestamp": ..., "source": ...}}
-    Auto-migrates old single-agent format.
+    Returns: {"project_name": {"status": ..., "timestamp": ..., "source": ...}}
+    Auto-migrates old formats.
     Returns empty dict if file doesn't exist.
     """
     if not STATUS_FILE.exists():
@@ -225,12 +259,13 @@ def read_status_file() -> dict[str, dict]:
     except (json.JSONDecodeError, IOError):
         return {}
 
-    # Detect and migrate old format
-    if "agents" not in data:
-        # Old format: {"status": ..., "timestamp": ..., "source": ...}
+    data = _normalize_key(data)
+
+    if "projects" not in data:
+        # Old single-agent format: {"status": "idle", ...}
         if "status" in data:
             return {
-                DEFAULT_AGENT: {
+                DEFAULT_PROJECT: {
                     "status": data.get("status", "idle"),
                     "timestamp": data.get("timestamp", ""),
                     "source": data.get("source", "migrated"),
@@ -238,16 +273,15 @@ def read_status_file() -> dict[str, dict]:
             }
         return {}
 
-    return data.get("agents", {})
+    return data.get("projects", {})
 
 
-def write_status_file(agents: dict[str, dict]) -> None:
-    """Write the full agents dictionary to the status file (atomic write)."""
+def write_status_file(projects: dict[str, dict]) -> None:
+    """Write the full projects dictionary to the status file (atomic write)."""
     STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    payload = {"agents": agents}
+    payload = {"projects": projects}
 
-    # Atomic write: temp file then rename
     try:
         fd, tmp_path = tempfile.mkstemp(
             dir=str(STATUS_FILE.parent),
@@ -259,30 +293,35 @@ def write_status_file(agents: dict[str, dict]) -> None:
             json.dump(payload, f, ensure_ascii=False, indent=2)
         os.replace(tmp_path, str(STATUS_FILE))
     except Exception:
-        # Fallback: direct write
         with open(STATUS_FILE, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
-def update_agent_status(agent_name: str, status: str, source: str = "unknown") -> None:
-    """Set one agent's status and write the file."""
+def update_project_status(name: str, status: str, source: str = "unknown") -> None:
+    """Set one project's status and write the file."""
     if status not in VALID_STATUSES:
         raise ValueError(f"Invalid status: {status}")
 
-    agents = read_status_file()
-    agents[agent_name] = {
+    projects = read_status_file()
+    projects[name] = {
         "status": status,
         "timestamp": datetime.now().isoformat(),
         "source": source,
     }
-    write_status_file(agents)
+    write_status_file(projects)
 
 
-def remove_agent(agent_name: str) -> bool:
-    """Remove an agent. Returns False if agent didn't exist."""
-    agents = read_status_file()
-    if agent_name not in agents:
+def remove_project(name: str) -> bool:
+    """Remove a project. Returns False if project didn't exist."""
+    projects = read_status_file()
+    if name not in projects:
         return False
-    del agents[agent_name]
-    write_status_file(agents)
+    del projects[name]
+    write_status_file(projects)
     return True
+
+
+# ── Backward-compat aliases ────────────────────────────────────────────
+
+update_agent_status = update_project_status
+remove_agent = remove_project
