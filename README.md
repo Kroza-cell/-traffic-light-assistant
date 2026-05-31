@@ -1,33 +1,48 @@
-# Traffic Light Desktop Assistant (Multi-Agent)
+# Traffic Light Desktop Monitor
 
-> Real-time Claude Code work status monitor — supports multiple agents
+> Real-time project status monitor — independent traffic light window per project
 
-Each agent gets a compact card with 3 mini traffic lights:
+Each project gets its own **always-on-top** floating window with a classic traffic light display:
 
-| Light | Status | Meaning |
-|-------|--------|---------|
-| Red | Idle | Waiting for tasks |
-| Yellow | Working | Currently processing |
-| Green | Complete | Task finished |
+| Light | Status | Color |
+|-------|--------|-------|
+| Blue | Idle | `#3399ff` |
+| Yellow | Working | `#ffcc00` |
+| Green | Complete | `#00ff44` |
 
 ## Preview
 
 ```
-+-----------------------------------+
-| Claude Agents               +  X  |
-|-----------------------------------|
-|  default       (o) (o) (o)        |
-|                  Idle             |
-|-----------------------------------|
-|  reviewer      (o) (o) (o)        |
-|                Working            |
-|-----------------------------------|
-|  tester        (o) (o) (o)        |
-|                Complete           |
-+-----------------------------------+
-|  3 agent(s) | 1 working           |
-+-----------------------------------+
+ Single project (140x380)        Multi-project grid
++------------+                +------------+ +------------+
+| default  X |                | default  X | | backend  X |
+|------------|                |------------| |------------|
+|  default   |                |            | |            |
+|            |                |   (blue)   | |   (blue)   |
+| (  blue  ) | <-- Idle       |            | |            |
+|            |                |            | |            |
+| ( yellow ) | <-- Working    |  (yellow)  | | ( yellow ) |
+|            |                |            | |            |
+| ( green  ) | <-- Complete   |            | |            |
+|            |                |  (green)   | | ( green  ) |
+|   Idle     |                |            | |            |
+|------------|                |  Working   | |   Idle     |
+| 1 projects |                |------------| |------------|
++------------+                +------------+ +------------+
+
+ Keyboard shortcuts visible at bottom of each window
 ```
+
+## Features
+
+- **Multi-Window**: Each project = one independent traffic light window
+- **Auto-Detect**: New projects appear automatically via file polling
+- **Auto-Cleanup**: Completed projects auto-close after 5-second countdown
+- **Keyboard Shortcuts**: `[1]` Idle `[2]` Work `[3]` Done `[Del]` Close `[L]` Lang `[A]` Boot
+- **Bilingual**: Chinese / English toggle (CLI + GUI)
+- **Boot Auto-Start**: `python status_updater.py autostart on` to launch at login
+- **Always-on-Top**: Windows stay visible above other apps
+- **Draggable**: Click and drag to reposition each window
 
 ## Requirements
 
@@ -36,73 +51,119 @@ Each agent gets a compact card with 3 mini traffic lights:
 
 ## Quick Start
 
-### Launch the GUI
-
 ```bash
-# Double-click run.bat (Windows)
-# OR from terminal:
-python traffic_light.py
+# Clone the repo
+git clone https://github.com/Kroza-cell/-traffic-light-assistant.git
+cd -traffic-light-assistant
+
+# Launch the multi-window monitor
+python monitor.py
+
+# Set a project status from CLI
+python status_updater.py working -a "My Project"
+python status_updater.py done -a "My Project"    # Auto-closes after 5s
+python status_updater.py idle -a "My Project"
 ```
 
-### CLI Commands
+Or double-click **`run.bat`** on Windows.
+
+## CLI Commands
 
 ```bash
-# Set status for default agent
-python status_updater.py idle
-python status_updater.py working
-python status_updater.py done
+# Set status
+python status_updater.py idle          # Blue light (idle)
+python status_updater.py working       # Yellow light (working)
+python status_updater.py done          # Green light (complete, auto-remove 5s)
 
-# Set status for a specific agent
-python status_updater.py working --agent reviewer
-python status_updater.py done -a tester
+# Target a specific project
+python status_updater.py working --agent "Frontend"
+python status_updater.py done -a "Backend"
 
-# List all agents
+# List all projects (with hierarchy)
 python status_updater.py list
+python status_updater.py list -l zh    # Chinese output
 
-# Remove an agent
-python status_updater.py remove tester
+# Remove a project
+python status_updater.py remove "Project Name"
+
+# Boot auto-start
+python status_updater.py autostart on   # Enable
+python status_updater.py autostart off  # Disable
+python status_updater.py autostart      # Check status
 ```
 
-### GUI Controls
+## GUI Controls
 
 | Action | How |
 |--------|-----|
-| Switch status | Right-click an agent card → select status |
-| Add agent | Click **+** button or right-click → Add Agent |
-| Remove agent | Right-click the agent card → Remove Agent |
-| Move window | Left-click and drag anywhere |
-| Close | Click **X** or right-click → Exit |
+| Switch status | Right-click → select, or keyboard `[1]`/`[2]`/`[3]` |
+| Close window | Click `X`, press `Delete`/`Esc`, or right-click → Remove |
+| Toggle language | Press `[L]` or right-click → language toggle |
+| Toggle auto-start | Press `[A]` or right-click → auto-start toggle |
+| Move window | Click and drag anywhere on the window |
 
-## How It Works
+## Keyboard Shortcuts
 
-The GUI reads `~/.claude/desk_assistant_status.json` every second. Any external tool (including Claude Code itself) can write to this file to sync all agents' statuses.
+| Key | Action |
+|-----|--------|
+| `1` / `I` | Idle (blue) |
+| `2` / `W` | Working (yellow) |
+| `3` / `D` | Complete (green) |
+| `Delete` / `Esc` | Close window |
+| `L` | Switch language |
+| `A` | Toggle boot auto-start |
 
-### Status File Format
+## Status File
+
+Monitor reads `~/.claude/desk_assistant_status.json` every second:
 
 ```json
 {
-  "agents": {
-    "default": {
-      "status": "idle",
-      "timestamp": "2026-05-31T12:00:00",
-      "source": "status_updater_cli"
-    },
-    "reviewer": {
+  "projects": {
+    "Frontend": {
       "status": "working",
+      "timestamp": "2026-05-31T12:00:00",
+      "source": "status_updater_cli",
+      "parent": null
+    },
+    "Backend": {
+      "status": "idle",
       "timestamp": "2026-05-31T12:01:00",
-      "source": "status_updater_cli"
+      "source": "status_updater_cli",
+      "parent": null
     }
   }
 }
 ```
 
-Old single-agent format is auto-migrated on first read.
-
 ## Files
 
 | File | Description |
 |------|-------------|
-| `traffic_light.py` | Main GUI — multi-agent card layout |
-| `status_updater.py` | CLI tool — set/list/remove agents |
-| `config.py` | Shared constants and file I/O |
-| `run.bat` | Windows quick-launch script |
+| `monitor.py` | **Main** — multi-window monitor with all features |
+| `status_updater.py` | CLI tool — set/list/remove/autostart |
+| `config.py` | Shared constants, file I/O, i18n, tree logic |
+| `traffic_light.py` | Legacy tree-mode GUI (use `monitor.py` instead) |
+| `run.bat` | Windows quick-launch |
+
+## Auto-Start with Claude Code
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python \"path/to/monitor.py\" 2>&1 &",
+        "timeout": 5
+      }]
+    }]
+  }
+}
+```
+
+## License
+
+MIT
