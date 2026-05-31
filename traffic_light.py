@@ -353,7 +353,9 @@ class ProjectTrafficApp:
             self._show_project_menu(event, self.project_order[0])
         elif n > 1:
             # Multi card mode: detect which card
-            row = (event.y - 24) // cfg.CARD_HEIGHT  # -24 for project name offset in multi
+            # event.y is in root coords; convert to canvas coords
+            canvas_y = event.y - self.canvas.winfo_y()
+            row = canvas_y // cfg.CARD_HEIGHT
             if 0 <= row < n:
                 self._show_project_menu(event, self.project_order[row])
             else:

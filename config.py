@@ -171,14 +171,18 @@ LIGHT_CONFIG = {
 
 # ── GUI dimensions ──────────────────────────────────────────────────────
 
+# Shared
+BASE_HEIGHT = 80  # title bar + status bar combined height (used by both modes)
+
 # Multi-project (card list) mode
 CARD_WINDOW_WIDTH = 230
 CARD_HEIGHT       = 60
-CARD_BASE_HEIGHT  = 80
+CARD_BASE_HEIGHT  = BASE_HEIGHT  # alias
 
 # Single-project (big light) mode
 SINGLE_WINDOW_WIDTH  = 140
-SINGLE_WINDOW_HEIGHT = 360
+SINGLE_WINDOW_HEIGHT = 380
+SINGLE_CANVAS_MARGIN = 30  # reserved space below status text
 BIG_LIGHT_TOP        = 10    # y offset for first light
 BIG_LIGHT_SPACING    = 80    # vertical gap between lights
 BIG_LIGHT_CY_OFFSET  = 38    # circle center offset from top of each light area
