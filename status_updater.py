@@ -76,6 +76,11 @@ def parse_args(argv):
         elif first == "remove" and len(positional) >= 2:
             args["command"] = "remove"
             args["target"] = positional[1]
+        elif first == "autostart" and len(positional) >= 2:
+            args["command"] = "autostart"
+            args["target"] = positional[1].lower()
+        elif first == "autostart":
+            args["command"] = "autostart_status"
         elif first in cfg.VALID_STATUSES:
             args["status"] = first
         else:
@@ -93,6 +98,38 @@ def print_help(lang: str = "zh"):
     print(cfg.t("opt_parent", lang))
     print(cfg.t("opt_lang", lang))
     print("  -h, --help         Show this help")
+    print()
+    print("Auto-start commands:")
+    print("  autostart on        Enable boot auto-start")
+    print("  autostart off       Disable boot auto-start")
+    print("  autostart           Show current auto-start status")
+
+
+def cmd_autostart(action: str, lang: str):
+    """Enable/disable boot auto-start."""
+    if action not in ("on", "off"):
+        print(f"[ERROR] Unknown action: {action}. Use 'on' or 'off'.")
+        sys.exit(1)
+
+    enable = (action == "on")
+    ok = cfg.set_autostart(enable)
+    if ok:
+        if enable:
+            print(cfg.t("autostart_enabled", lang))
+            print(f"  {cfg.STARTUP_LINK}")
+        else:
+            print(cfg.t("autostart_disabled", lang))
+    else:
+        print(cfg.t("autostart_unknown", lang))
+
+
+def cmd_autostart_status(lang: str):
+    """Show auto-start status."""
+    status = cfg.get_autostart_status()
+    print(f"{cfg.t('autostart_status', lang)} {'ON' if status else 'OFF'}")
+    if cfg.STARTUP_LINK:
+        print(f"  Path: {cfg.STARTUP_LINK}")
+        print(f"  Exists: {cfg.STARTUP_LINK.exists()}")
 
 
 def cmd_set(status, name, lang, parent=None):
@@ -190,6 +227,10 @@ def main():
         cmd_list(args["lang"])
     elif args["command"] == "remove":
         cmd_remove(args["target"], args["lang"])
+    elif args["command"] == "autostart":
+        cmd_autostart(args["target"], args["lang"])
+    elif args["command"] == "autostart_status":
+        cmd_autostart_status(args["lang"])
     elif args["status"]:
         cmd_set(args["status"], args["project"], args["lang"], args["parent"])
     else:

@@ -219,6 +219,13 @@ class ProjectWindow:
         menu.add_command(label=self._("lang_toggle"),
                          command=self.monitor.toggle_language)
         menu.add_separator()
+        if cfg.get_autostart_status():
+            menu.add_command(label=self._("autostart_disable"),
+                             command=self.monitor.toggle_autostart)
+        else:
+            menu.add_command(label=self._("autostart_enable"),
+                             command=self.monitor.toggle_autostart)
+        menu.add_separator()
         menu.add_command(label=self._("remove_project"),
                          command=lambda: self.monitor.remove_project(self.name))
         menu.add_separator()
@@ -371,6 +378,19 @@ class MultiWindowMonitor:
         for name in list(self.windows.keys()):
             self._close_window(name)
         self._sync()
+
+    # ── Auto-Start ────────────────────────────────────────────────────
+
+    def toggle_autostart(self):
+        """Toggle boot auto-start on/off."""
+        current = cfg.get_autostart_status()
+        ok = cfg.set_autostart(not current)
+        if ok:
+            lang = self.lang
+            if not current:
+                print(f"[OK] {cfg.t('autostart_enabled', lang)}")
+            else:
+                print(f"[OK] {cfg.t('autostart_disabled', lang)}")
 
     # ── Reposition ────────────────────────────────────────────────────
 

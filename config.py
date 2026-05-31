@@ -14,12 +14,21 @@ Old formats auto-migrated on read.
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 from datetime import datetime
 
 STATUS_FILE = Path.home() / ".claude" / "desk_assistant_status.json"
 LANG_FILE   = Path.home() / ".claude" / "desk_assistant_lang.json"
+
+# Windows Startup folder
+if sys.platform == "win32":
+    STARTUP_DIR = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    STARTUP_LINK = STARTUP_DIR / "ClaudeProjectMonitor.bat"
+else:
+    STARTUP_DIR = None
+    STARTUP_LINK = None
 
 VALID_STATUSES = {"idle", "working", "done"}
 
@@ -64,6 +73,15 @@ TEXTS = {
         "expand_all": "展开全部",
         "collapse_all": "折叠全部",
         "aggregate": "汇总",
+        # Auto-start
+        "autostart_on": "开机自启: 开",
+        "autostart_off": "开机自启: 关",
+        "autostart_enable": "启用开机自启",
+        "autostart_disable": "禁用开机自启",
+        "autostart_enabled": "开机自启已启用",
+        "autostart_disabled": "开机自启已禁用",
+        "autostart_unknown": "非 Windows 系统，不支持开机自启",
+        "autostart_status": "开机自启状态:",
         # CLI
         "list_title": "=== Claude 项目状态监控 ===",
         "list_no_registered": "还没有注册的项目。",
@@ -125,6 +143,15 @@ TEXTS = {
         "expand_all": "Expand All",
         "collapse_all": "Collapse All",
         "aggregate": "Aggregate",
+        # Auto-start
+        "autostart_on": "AutoStart: ON",
+        "autostart_off": "AutoStart: OFF",
+        "autostart_enable": "Enable AutoStart",
+        "autostart_disable": "Disable AutoStart",
+        "autostart_enabled": "AutoStart enabled",
+        "autostart_disabled": "AutoStart disabled",
+        "autostart_unknown": "Non-Windows system, not supported",
+        "autostart_status": "AutoStart Status:",
         # CLI
         "list_title": "=== Claude Project Status Monitor ===",
         "list_no_registered": "No projects registered yet.",
@@ -404,6 +431,39 @@ def remove_project(name: str) -> tuple[bool, list[str]]:
     removed_children.sort()
     write_status_file(projects)
     return True, removed_children
+
+
+# ── Auto-start helpers ──────────────────────────────────────────────────
+
+def get_autostart_status() -> bool:
+    """Check if the auto-start shortcut exists."""
+    if STARTUP_LINK is None:
+        return False
+    return STARTUP_LINK.exists()
+
+
+def set_autostart(enable: bool) -> bool:
+    """Create or remove the Startup folder shortcut. Returns success."""
+    if STARTUP_LINK is None:
+        return False
+    try:
+        if enable:
+            STARTUP_DIR.mkdir(parents=True, exist_ok=True)
+            # Resolve monitor.py absolute path
+            monitor_dir = Path(__file__).resolve().parent
+            bat_content = (
+                "@echo off\r\n"
+                f'cd /d "{monitor_dir}"\r\n'
+                "start /min pythonw monitor.py\r\n"
+            )
+            with open(STARTUP_LINK, "w", encoding="utf-8") as f:
+                f.write(bat_content)
+        else:
+            if STARTUP_LINK.exists():
+                STARTUP_LINK.unlink()
+        return True
+    except Exception:
+        return False
 
 
 # ── Backward-compat aliases ────────────────────────────────────────────
