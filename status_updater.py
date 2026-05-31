@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 Claude Project Status Updater — set work status from command line.
-Supports Chinese (zh) / English (en) output.
+Supports parent-child project hierarchy.
 
 Usage:
-  python status_updater.py <status> [-a PROJECT] [-l zh|en]
+  python status_updater.py <status> [-a PROJECT] [-p PARENT] [-l zh|en]
   python status_updater.py list [-l zh|en]
   python status_updater.py remove <name> [-l zh|en]
 
@@ -30,6 +30,7 @@ def parse_args(argv):
     args = {
         "status": None,
         "project": cfg.DEFAULT_PROJECT,
+        "parent": None,
         "command": None,
         "target": None,
         "lang": cfg.load_lang(),
@@ -39,9 +40,12 @@ def parse_args(argv):
     positional = []
     while i < len(argv):
         a = argv[i]
-        if a in ("-a", "--agent", "-p", "--project"):
+        if a in ("-a", "--agent", "-p", "--project", "--parent"):
             if i + 1 < len(argv):
-                args["project"] = argv[i + 1]
+                if a in ("--parent",):
+                    args["parent"] = argv[i + 1]
+                else:
+                    args["project"] = argv[i + 1]
                 i += 2
             else:
                 print(cfg.t("err_project_required", args["lang"]))
@@ -86,13 +90,15 @@ def print_help(lang: str = "zh"):
     print(__doc__)
     print(cfg.t("options", lang))
     print(cfg.t("opt_project", lang))
+    print(cfg.t("opt_parent", lang))
     print(cfg.t("opt_lang", lang))
     print("  -h, --help         Show this help")
 
 
-def cmd_set(status, name, lang):
+def cmd_set(status, name, lang, parent=None):
     try:
-        cfg.update_project_status(name, status, source="status_updater_cli")
+        cfg.update_project_status(name, status, source="status_updater_cli",
+                                  parent=parent)
     except ValueError as e:
         print(f"[ERROR] {e}")
         sys.exit(1)
@@ -101,7 +107,8 @@ def cmd_set(status, name, lang):
     label = cfg.status_label(status, lang)
     proj_text = cfg.t("project_label", lang)
     status_text = cfg.t("status_updated", lang)
-    print(f"[{light_name.upper()}] {proj_text} '{name}' {status_text}: {label}")
+    extra = f" (parent: {parent})" if parent else ""
+    print(f"[{light_name.upper()}] {proj_text} '{name}' {status_text}: {label}{extra}")
 
 
 def cmd_list(lang):
@@ -111,25 +118,57 @@ def cmd_list(lang):
         print(cfg.t("list_create_hint", lang))
         return
 
+    # Build tree view
+    roots = cfg.build_project_tree(projects)
+    # Localize overview title
+    for r in roots:
+        if r["synthetic"]:
+            r["display_name"] = cfg.localize_overview(lang)
+
     col_proj = cfg.t("list_col_project", lang)
     col_status = cfg.t("list_col_status", lang)
     col_light = cfg.t("list_col_light", lang)
-    col_updated = cfg.t("list_col_updated", lang)
+    col_parent = cfg.t("list_col_parent", lang)
 
-    print(f"{col_proj:<20} {col_status:<10} {col_light:<8} {col_updated}")
-    print("-" * 65)
-    for name, data in sorted(projects.items()):
-        status = data.get("status", "?")
+    print(f"{col_proj:<22} {col_status:<10} {col_light:<8} {col_parent:<12} {cfg.t('list_col_updated', lang)}")
+    print("-" * 78)
+
+    shown = set()
+
+    def show_node(display_name, real_name, data, indent=0):
+        prefix = "  " * indent
+        status = data.get("status", "?") if data else "?"
         light = cfg.STATUS_TO_ACTIVE.get(status, "?")
         label = cfg.status_label(status, lang)
-        ts = data.get("timestamp", "?")[:19]
-        print(f"{name:<20} {label:<10} {light:<8} {ts}")
+        parent_name = data.get("parent", "-") if data else ("[auto]" if indent > 0 else "-")
+        if parent_name is None:
+            parent_name = "-"
+        ts = (data.get("timestamp", "?") or "?")[:19] if data else "?"
+        print(f"{prefix}{display_name:<{22-indent*2}} {label:<10} {light:<8} {str(parent_name):<12} {ts}")
+        if real_name:
+            shown.add(real_name)
+
+    for r in roots:
+        real_data = r.get("project") or {"status": r["status"], "parent": None}
+        show_node(r["display_name"], r["name"] if not r["synthetic"] else None, real_data)
+        for child in r.get("children", []):
+            child_data = projects.get(child, {})
+            show_node(child, child, child_data, indent=1)
+
+    # Show any un-parented projects not in tree
+    for name, data in sorted(projects.items()):
+        if name not in shown:
+            show_node(name, name, data)
 
 
 def cmd_remove(name, lang):
-    ok = cfg.remove_project(name)
+    ok, children = cfg.remove_project(name)
     if ok:
         print(f"{cfg.t('removed_ok', lang)} {name}")
+        if children:
+            print(cfg.t("removed_children", lang).replace("{n}", str(len(children))))
+            for c in children:
+                print(f"  - {c}")
     else:
         print(f"{cfg.t('removed_not_found', lang)} {name}")
 
@@ -152,7 +191,7 @@ def main():
     elif args["command"] == "remove":
         cmd_remove(args["target"], args["lang"])
     elif args["status"]:
-        cmd_set(args["status"], args["project"], args["lang"])
+        cmd_set(args["status"], args["project"], args["lang"], args["parent"])
     else:
         print(cfg.t("err_no_command", args["lang"]))
         print_help(args["lang"])
