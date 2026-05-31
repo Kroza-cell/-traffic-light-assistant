@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 Claude Multi-Agent Status Updater — set work status from command line.
+Supports Chinese (zh) / English (en) output.
 
 Usage:
-  python status_updater.py <status> [-a AGENT]     Set status (default agent: "default")
-  python status_updater.py list                      List all agents
-  python status_updater.py remove <name>             Remove an agent
+  python status_updater.py <status> [-a AGENT] [-l zh|en]
+  python status_updater.py list [-l zh|en]
+  python status_updater.py remove <name> [-l zh|en]
 
 Status values:
   idle      RED light    — idle / waiting
@@ -17,15 +18,23 @@ Status values:
 import sys
 from pathlib import Path
 
-# Allow running from any directory
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import config as cfg
 
 
 def parse_args(argv):
-    """Simple arg parser — no stdlib dependency, works on all Python 3.x."""
-    args = {"status": None, "agent": cfg.DEFAULT_AGENT, "command": None, "target": None}
+    """Simple arg parser — no stdlib dependency."""
+    args = {
+        "status": None,
+        "agent": cfg.DEFAULT_AGENT,
+        "command": None,
+        "target": None,
+        "lang": cfg.load_lang(),
+    }
 
     i = 0
     positional = []
@@ -36,10 +45,22 @@ def parse_args(argv):
                 args["agent"] = argv[i + 1]
                 i += 2
             else:
-                print("[ERROR] --agent requires a name")
+                print(cfg.t("err_agent_required", args["lang"]))
+                sys.exit(1)
+        elif a in ("-l", "--lang"):
+            if i + 1 < len(argv):
+                lang = argv[i + 1]
+                if lang in ("zh", "en"):
+                    args["lang"] = lang
+                else:
+                    print(f"[ERROR] Invalid language: {lang}. Use 'zh' or 'en'.")
+                    sys.exit(1)
+                i += 2
+            else:
+                print("[ERROR] --lang requires 'zh' or 'en'")
                 sys.exit(1)
         elif a in ("-h", "--help"):
-            print_help()
+            print_help(args["lang"])
             sys.exit(0)
         else:
             positional.append(a)
@@ -55,21 +76,22 @@ def parse_args(argv):
         elif first in cfg.VALID_STATUSES:
             args["status"] = first
         else:
-            print(f"[ERROR] Unknown command/status: {first}")
-            print_help()
+            print(cfg.t("err_unknown_cmd", args["lang"]), first)
+            print_help(args["lang"])
             sys.exit(1)
 
     return args
 
 
-def print_help():
+def print_help(lang: str = "zh"):
     print(__doc__)
-    print("Options:")
-    print("  -a, --agent NAME   Target agent name (default: 'default')")
+    print(cfg.t("options", lang))
+    print(cfg.t("opt_agent", lang))
+    print(cfg.t("opt_lang", lang))
     print("  -h, --help         Show this help")
 
 
-def cmd_set(status, agent_name):
+def cmd_set(status, agent_name, lang):
     """Set an agent's status."""
     try:
         cfg.update_agent_status(agent_name, status, source="status_updater_cli")
@@ -78,58 +100,66 @@ def cmd_set(status, agent_name):
         sys.exit(1)
 
     light_name = cfg.STATUS_TO_ACTIVE[status]
-    label = cfg.STATUS_TEXT[status]
-    print(f"[{light_name.upper()}] Agent '{agent_name}' -> {label}")
+    label = cfg.status_label(status, lang)
+    agent_text = cfg.t("agent_label", lang)
+    status_text = cfg.t("status_updated", lang)
+    print(f"[{light_name.upper()}] {agent_text} '{agent_name}' {status_text}: {label}")
 
 
-def cmd_list():
+def cmd_list(lang):
     """List all registered agents."""
     agents = cfg.read_status_file()
     if not agents:
-        print("No agents registered yet.")
-        print(f"Use: python status_updater.py idle  (creates '{cfg.DEFAULT_AGENT}' agent)")
+        print(cfg.t("list_no_registered", lang))
+        print(cfg.t("list_create_hint", lang))
         return
 
-    print(f"{'Agent':<20} {'Status':<10} {'Light':<8} {'Updated'}")
+    col_agent = cfg.t("list_col_agent", lang)
+    col_status = cfg.t("list_col_status", lang)
+    col_light = cfg.t("list_col_light", lang)
+    col_updated = cfg.t("list_col_updated", lang)
+
+    print(f"{col_agent:<20} {col_status:<10} {col_light:<8} {col_updated}")
     print("-" * 65)
     for name, data in sorted(agents.items()):
         status = data.get("status", "?")
         light = cfg.STATUS_TO_ACTIVE.get(status, "?")
-        label = cfg.STATUS_TEXT.get(status, status)
-        ts = data.get("timestamp", "?")[:19]  # truncate microseconds
+        label = cfg.status_label(status, lang)
+        ts = data.get("timestamp", "?")[:19]
         print(f"{name:<20} {label:<10} {light:<8} {ts}")
 
 
-def cmd_remove(agent_name):
+def cmd_remove(agent_name, lang):
     """Remove an agent."""
     ok = cfg.remove_agent(agent_name)
     if ok:
-        print(f"Removed agent: {agent_name}")
+        print(f"{cfg.t('removed_ok', lang)} {agent_name}")
     else:
-        print(f"Agent '{agent_name}' not found.")
+        print(f"{cfg.t('removed_not_found', lang)} {agent_name}")
 
 
 def main():
     if len(sys.argv) < 2:
-        print("=== Claude Multi-Agent Status Updater ===")
+        default_lang = cfg.load_lang()
+        print(cfg.t("list_title", default_lang))
         print()
-        cmd_list()
+        cmd_list(default_lang)
         print()
-        print_help()
+        print_help(default_lang)
         sys.exit(0)
 
     argv = sys.argv[1:]
     args = parse_args(argv)
 
     if args["command"] == "list":
-        cmd_list()
+        cmd_list(args["lang"])
     elif args["command"] == "remove":
-        cmd_remove(args["target"])
+        cmd_remove(args["target"], args["lang"])
     elif args["status"]:
-        cmd_set(args["status"], args["agent"])
+        cmd_set(args["status"], args["agent"], args["lang"])
     else:
-        print("[ERROR] No command given")
-        print_help()
+        print(cfg.t("err_no_command", args["lang"]))
+        print_help(args["lang"])
         sys.exit(1)
 
 

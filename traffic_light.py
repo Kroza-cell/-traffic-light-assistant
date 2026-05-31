@@ -5,6 +5,7 @@ Red = Idle | Yellow = Working | Green = Complete
 
 Each agent is shown as a compact card with 3 mini horizontal lights.
 Reads/Writes ~/.claude/desk_assistant_status.json
+Supports Chinese (zh) / English (en) language toggle.
 """
 
 import tkinter as tk
@@ -22,13 +23,16 @@ class MultiAgentTrafficApp:
         self.root.title("Claude Multi-Agent Monitor")
         self.root.configure(bg="#0d0d0d")
 
+        # Language
+        self.lang = cfg.load_lang()
+
         # Borderless + always-on-top
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
 
         # Internal state
-        self.agents: dict[str, dict] = {}       # agent_name -> {status, timestamp, source}
-        self.agent_order: list[str] = []         # insertion order
+        self.agents: dict[str, dict] = {}
+        self.agent_order: list[str] = []
         self._drag_x = 0
         self._drag_y = 0
 
@@ -51,16 +55,22 @@ class MultiAgentTrafficApp:
         # ---- Build UI ----
         self._build_ui()
         self._draw_all_cards()
-        self._update_title()
+        self._update_status_bar()
 
         # ---- Start polling ----
         self._poll_status_file()
+
+    def _(self, key, **kwargs):
+        """Shortcut for translation lookups."""
+        s = cfg.t(key, self.lang)
+        if kwargs:
+            s = s.format(**kwargs)
+        return s
 
     # ── UI Construction ───────────────────────────────────────────────
 
     def _build_ui(self):
         """Create the static UI shell: title bar + canvas."""
-        # Outer frame
         self.bg_frame = tk.Frame(self.root, bg="#0d0d0d", highlightthickness=1,
                                  highlightbackground="#333333", highlightcolor="#333333")
         self.bg_frame.pack(fill="both", expand=True, padx=0, pady=0)
@@ -70,10 +80,20 @@ class MultiAgentTrafficApp:
         self.title_bar.pack(fill="x", padx=8, pady=(8, 0))
         self.title_bar.pack_propagate(False)
 
-        self.title_label = tk.Label(self.title_bar, text="Claude Agents",
+        self.title_label = tk.Label(self.title_bar,
+                                    text=self._("title"),
                                     bg="#0d0d0d", fg="#888888",
                                     font=("Microsoft YaHei UI", 9, "bold"))
         self.title_label.pack(side="left")
+
+        # Language toggle button
+        lang_btn = tk.Label(self.title_bar, text="EN" if self.lang == "zh" else "中",
+                            bg="#0d0d0d", fg="#888888",
+                            font=("Microsoft YaHei UI", 8, "bold"), cursor="hand2")
+        lang_btn.pack(side="right", padx=(0, 6))
+        lang_btn.bind("<Button-1>", lambda e: self._toggle_language())
+        lang_btn.bind("<Enter>", lambda e: lang_btn.config(fg="#ffcc00"))
+        lang_btn.bind("<Leave>", lambda e: lang_btn.config(fg="#888888"))
 
         # Add agent button [+]
         add_btn = tk.Label(self.title_bar, text="+", bg="#0d0d0d", fg="#666666",
@@ -94,7 +114,7 @@ class MultiAgentTrafficApp:
         # Separator
         tk.Frame(self.bg_frame, bg="#222222", height=1).pack(fill="x", padx=10, pady=(6, 4))
 
-        # Scrollable canvas for agent cards
+        # Canvas for agent cards
         self.canvas = tk.Canvas(self.bg_frame, width=cfg.WINDOW_WIDTH - 4,
                                 bg="#0d0d0d", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True, padx=2)
@@ -106,22 +126,39 @@ class MultiAgentTrafficApp:
                                      font=("Microsoft YaHei UI", 7), anchor="w")
         self.status_label.pack(fill="x", padx=8, pady=(0, 6))
 
+    # ── Language Toggle ───────────────────────────────────────────────
+
+    def _toggle_language(self):
+        """Switch between Chinese and English, rebuild UI."""
+        self.lang = "en" if self.lang == "zh" else "zh"
+        cfg.save_lang(self.lang)
+
+        # Rebuild title bar
+        self.title_label.config(text=self._("title"))
+        for child in self.title_bar.winfo_children():
+            if isinstance(child, tk.Label) and child.cget("text") in ("EN", "中"):
+                child.config(text="EN" if self.lang == "zh" else "中")
+
+        # Redraw everything
+        self._draw_all_cards()
+        self._update_status_bar()
+
     # ── Card Drawing ──────────────────────────────────────────────────
 
     def _draw_all_cards(self):
         """Full redraw of all agent cards."""
         self.canvas.delete("card")
-        self._card_elements: dict[str, dict] = {}  # agent_name -> {red: {ring,glow1,glow2,core}, yellow:..., green:..., label, name_text}
+        self._card_elements: dict[str, dict] = {}
 
         if not self.agent_order:
             self.canvas.create_text(
                 cfg.WINDOW_WIDTH // 2 - 2, 20,
-                text="No agents", fill="#444444",
+                text=self._("no_agents"), fill="#444444",
                 font=("Microsoft YaHei UI", 9), tags="card"
             )
             self.canvas.create_text(
                 cfg.WINDOW_WIDTH // 2 - 2, 38,
-                text='Click "+" to add', fill="#333333",
+                text=self._("click_add"), fill="#333333",
                 font=("Microsoft YaHei UI", 7), tags="card"
             )
             return
@@ -135,10 +172,9 @@ class MultiAgentTrafficApp:
         """Draw a single agent card at the given row index."""
         y0 = row_index * cfg.CARD_HEIGHT
         active_light = cfg.STATUS_TO_ACTIVE.get(status, "red")
-        cfg_lights = cfg.LIGHT_CONFIG
         w = cfg.WINDOW_WIDTH - 4
 
-        # Card background (subtle)
+        # Card background
         bg_tag = f"card_{agent_name}"
         self.canvas.create_rectangle(
             0, y0, w, y0 + cfg.CARD_HEIGHT - 2,
@@ -152,8 +188,7 @@ class MultiAgentTrafficApp:
             tags=("card", bg_tag)
         )
 
-        # 3 mini traffic lights — horizontal row
-        # Positions: red=100, yellow=122, green=144
+        # Mini light constants
         light_names = ["red", "yellow", "green"]
         light_cx = {"red": 100, "yellow": 122, "green": 144}
         cy = y0 + 32
@@ -162,35 +197,30 @@ class MultiAgentTrafficApp:
         for lname in light_names:
             cx = light_cx[lname]
             is_active = (lname == active_light)
-            c = cfg_lights[lname]
+            c = cfg.LIGHT_CONFIG[lname]
             tag = f"card_{agent_name}"
-            elements = self._card_elements.setdefault(agent_name, {})
+            self._card_elements.setdefault(agent_name, {})
 
             if is_active:
-                # Glowing ring
                 self.canvas.create_oval(
                     cx - RING_R - 2, cy - RING_R - 2,
                     cx + RING_R + 2, cy + RING_R + 2,
                     fill="#1a1a1a", outline=c["glow"], width=1, tags=("card", tag)
                 )
-                # Glow1
                 self.canvas.create_oval(
                     cx - RING_R, cy - RING_R,
                     cx + RING_R, cy + RING_R,
                     fill=c["glow"], outline="", tags=("card", tag)
                 )
-                # Glow2
                 self.canvas.create_oval(
                     cx - 6, cy - 6, cx + 6, cy + 6,
                     fill=c["active"], outline="", tags=("card", tag)
                 )
-                # Core (white center)
                 self.canvas.create_oval(
                     cx - 3, cy - 3, cx + 3, cy + 3,
                     fill="#ffffff", outline="", tags=("card", tag)
                 )
             else:
-                # Dim
                 self.canvas.create_oval(
                     cx - RING_R - 1, cy - RING_R - 1,
                     cx + RING_R + 1, cy + RING_R + 1,
@@ -207,7 +237,7 @@ class MultiAgentTrafficApp:
                 )
 
         # Status label below lights
-        status_text = cfg.STATUS_TEXT.get(status, status)
+        status_text = cfg.status_label(status, self.lang)
         status_color = cfg.STATUS_COLORS.get(status, "#888888")
         self.canvas.create_text(
             light_cx["yellow"], y0 + 50,
@@ -228,19 +258,17 @@ class MultiAgentTrafficApp:
         if agent_name not in self.agent_order:
             return
         idx = self.agent_order.index(agent_name)
-        # Clear old elements for this card
         tag = f"card_{agent_name}"
         self.canvas.delete(tag)
         if agent_name in self._card_elements:
             del self._card_elements[agent_name]
-        # Redraw
         self._draw_one_card(agent_name, status, idx)
 
     # ── Window Sizing ─────────────────────────────────────────────────
 
     def _resize_window(self):
         """Calculate and set window geometry."""
-        n = max(len(self.agent_order), 1)  # at least 1 card height for "no agents"
+        n = max(len(self.agent_order), 1)
         card_area = n * cfg.CARD_HEIGHT
         canvas_height = max(card_area, 60)
         total_height = cfg.BASE_HEIGHT + canvas_height
@@ -249,16 +277,14 @@ class MultiAgentTrafficApp:
         if hasattr(self, "canvas"):
             self.canvas.configure(height=canvas_height)
 
-    def _update_title(self):
-        """Update title bar and status bar text."""
+    def _update_status_bar(self):
+        """Update bottom status bar text."""
         n = len(self.agent_order)
         active_count = sum(
             1 for a in self.agent_order
             if self.agents.get(a, {}).get("status") == "working"
         )
-        self.status_label.config(
-            text=f"{n} agent(s) | {active_count} working"
-        )
+        self.status_label.config(text=self._("status_bar", n=n, active_count=active_count))
 
     # ── Drag ──────────────────────────────────────────────────────────
 
@@ -275,6 +301,7 @@ class MultiAgentTrafficApp:
 
     def _on_right_click(self, event):
         """Determine which agent card was clicked, show context menu."""
+        # Check if click is on canvas area
         row = event.y // cfg.CARD_HEIGHT
         if 0 <= row < len(self.agent_order):
             agent_name = self.agent_order[row]
@@ -285,37 +312,43 @@ class MultiAgentTrafficApp:
     def _show_agent_menu(self, event, agent_name: str):
         menu = tk.Menu(self.root, tearoff=0, bg="#1e1e1e", fg="#cccccc",
                        activebackground="#333333", activeforeground="#ffffff")
-        menu.add_command(label=f"Agent: {agent_name}", state="disabled",
-                         disabledforeground="#888888")
+        menu.add_command(label=f"{self._('agent_header')} {agent_name}",
+                         state="disabled", disabledforeground="#888888")
         menu.add_separator()
-        menu.add_command(label="[IDLE]  Set Idle",
+        menu.add_command(label=self._("set_idle"),
                          command=lambda: self.set_status(agent_name, "idle"))
-        menu.add_command(label="[WORK] Set Working",
+        menu.add_command(label=self._("set_working"),
                          command=lambda: self.set_status(agent_name, "working"))
-        menu.add_command(label="[DONE] Set Complete",
+        menu.add_command(label=self._("set_complete"),
                          command=lambda: self.set_status(agent_name, "done"))
         menu.add_separator()
-        menu.add_command(label="Add Agent...",
-                         command=self._gui_add_agent)
-        menu.add_command(label="Remove Agent...",
+        menu.add_command(label=self._("add_agent"), command=self._gui_add_agent)
+        menu.add_command(label=self._("remove_agent"),
                          command=lambda: self._gui_remove_agent(agent_name))
         menu.add_separator()
-        menu.add_command(label="Exit", command=self.root.quit)
+        menu.add_command(label=self._("lang_toggle"), command=self._toggle_language)
+        menu.add_separator()
+        menu.add_command(label=self._("exit"), command=self.root.quit)
         menu.post(event.x_root, event.y_root)
 
     def _show_global_menu(self, event):
         menu = tk.Menu(self.root, tearoff=0, bg="#1e1e1e", fg="#cccccc",
                        activebackground="#333333", activeforeground="#ffffff")
-        menu.add_command(label="Add Agent...", command=self._gui_add_agent)
+        menu.add_command(label=self._("add_agent"), command=self._gui_add_agent)
         menu.add_separator()
-        menu.add_command(label="Exit", command=self.root.quit)
+        menu.add_command(label=self._("lang_toggle"), command=self._toggle_language)
+        menu.add_separator()
+        menu.add_command(label=self._("exit"), command=self.root.quit)
         menu.post(event.x_root, event.y_root)
 
     # ── GUI Actions ───────────────────────────────────────────────────
 
     def _gui_add_agent(self):
-        name = simpledialog.askstring("Add Agent", "Agent name:",
-                                      parent=self.root)
+        name = simpledialog.askstring(
+            self._("add_agent_title"),
+            self._("add_agent_prompt"),
+            parent=self.root,
+        )
         if name and name.strip():
             name = name.strip()
             if name not in self.agents:
@@ -327,20 +360,18 @@ class MultiAgentTrafficApp:
                 self.agent_order.append(name)
                 self._resize_window()
                 self._draw_all_cards()
-                self._update_title()
+                self._update_status_bar()
                 self._write_to_file()
 
     def _gui_remove_agent(self, agent_name: str):
-        # Confirm dialog using a simple toplevel
         confirm = tk.Toplevel(self.root)
-        confirm.title("Remove Agent")
+        confirm.title(self._("remove_agent_title"))
         confirm.geometry("220x100")
         confirm.configure(bg="#1e1e1e")
         confirm.overrideredirect(True)
-        # Center on parent
         confirm.geometry(f"+{self.root.winfo_x() + 30}+{self.root.winfo_y() + 80}")
 
-        tk.Label(confirm, text=f'Remove "{agent_name}"?',
+        tk.Label(confirm, text=self._("remove_confirm").replace("{}", agent_name),
                  bg="#1e1e1e", fg="#cccccc",
                  font=("Microsoft YaHei UI", 9)).pack(pady=(12, 6))
 
@@ -353,13 +384,13 @@ class MultiAgentTrafficApp:
                 self.agent_order.remove(agent_name)
                 self._resize_window()
                 self._draw_all_cards()
-                self._update_title()
+                self._update_status_bar()
                 self._write_to_file()
             confirm.destroy()
 
-        tk.Button(btn_frame, text="Remove", command=do_remove,
+        tk.Button(btn_frame, text=self._("remove_btn"), command=do_remove,
                   bg="#ff4444", fg="#ffffff", relief="flat", padx=12).pack(side="left", padx=4)
-        tk.Button(btn_frame, text="Cancel", command=confirm.destroy,
+        tk.Button(btn_frame, text=self._("cancel_btn"), command=confirm.destroy,
                   bg="#333333", fg="#cccccc", relief="flat", padx=12).pack(side="left", padx=4)
 
     # ── Status Control ────────────────────────────────────────────────
@@ -375,7 +406,7 @@ class MultiAgentTrafficApp:
         }
         cfg.update_agent_status(agent_name, status, source="traffic_light_app")
         self._update_card_light(agent_name, status)
-        self._update_title()
+        self._update_status_bar()
 
     # ── File Sync ─────────────────────────────────────────────────────
 
@@ -387,18 +418,16 @@ class MultiAgentTrafficApp:
         """Load agents from file, detecting new/removed/changed."""
         file_agents = cfg.read_status_file()
 
-        # Detect changes
         old_names = set(self.agent_order)
         new_names = set(file_agents.keys())
 
         added = new_names - old_names
         removed = old_names - new_names
 
-        # Build new order: keep existing order, append new agents
         for name in self.agent_order[:]:
             if name in removed:
                 self.agent_order.remove(name)
-        for name in sorted(added):  # sort for deterministic order
+        for name in sorted(added):
             if name not in self.agent_order:
                 self.agent_order.append(name)
 
@@ -420,12 +449,10 @@ class MultiAgentTrafficApp:
         try:
             changed = self._reload_from_file()
             if changed:
-                # Full redraw when agents are added/removed
                 self._resize_window()
                 self._draw_all_cards()
-                self._update_title()
+                self._update_status_bar()
             else:
-                # Incremental update for status changes only
                 for name in self.agent_order:
                     data = self.agents.get(name, {})
                     status = data.get("status", "idle")
