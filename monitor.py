@@ -48,12 +48,16 @@ class ProjectWindow:
         self._build_ui()
         self._apply_light(status)
 
-        # Bindings — drag only on "ui" items, close button has its own handler
+        # Bindings
         self.win.bind("<Delete>", lambda e: self._close_self())
+        # Right-click: bind to both window and canvas for robustness
+        self.win.bind("<Button-3>", self._on_right_click)
+        self.canvas.bind("<Button-3>", self._on_right_click)
+        # Left-click drag via tag_bind so it doesn't interfere with close button
         self.canvas.tag_bind("ui", "<Button-1>", self._start_drag)
         self.canvas.tag_bind("ui", "<B1-Motion>", self._on_drag)
-        # Right-click on canvas (not on close button)
-        self.canvas.bind("<Button-3>", self._on_right_click)
+        # Also bind right-click on ui items to ensure it always fires
+        self.canvas.tag_bind("ui", "<Button-3>", self._on_right_click)
 
     @property
     def lang(self):
@@ -212,6 +216,12 @@ class ProjectWindow:
     # ── Context Menu ──────────────────────────────────────────────────
 
     def _on_right_click(self, event):
+        # Guard: prevent multiple menus from same event (multiple bindings)
+        if getattr(self, '_menu_active', False):
+            return "break"
+        self._menu_active = True
+        # Reset guard after menu closes (50ms after posting)
+        self.win.after(200, lambda: setattr(self, '_menu_active', False))
         menu = tk.Menu(self.win, tearoff=0, bg="#1e1e1e", fg="#cccccc",
                        activebackground="#333333", activeforeground="#ffffff")
         menu.add_command(label=f"Project: {self.name}",
