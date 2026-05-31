@@ -223,14 +223,14 @@ class ProjectTrafficApp:
     def _draw_single_light(self):
         name = self.project_order[0]
         status = self.projects.get(name, {}).get("status", "idle")
-        active_light = cfg.STATUS_TO_ACTIVE.get(status, "red")
+        active_light = cfg.STATUS_TO_ACTIVE.get(status, "blue")
         w = cfg.SINGLE_WINDOW_WIDTH - 4
         cx = w // 2
 
         self.canvas.create_text(cx, 14, text=name, fill="#aaaaaa",
                                 font=("Microsoft YaHei UI", 10, "bold"), tags="content")
 
-        light_names = ["red", "yellow", "green"]
+        light_names = ["blue", "yellow", "green"]
         for i, lname in enumerate(light_names):
             y_top = cfg.BIG_LIGHT_TOP + i * cfg.BIG_LIGHT_SPACING + 24
             cy = y_top + cfg.BIG_LIGHT_CY_OFFSET
@@ -310,7 +310,7 @@ class ProjectTrafficApp:
         toggle = "V" if expanded else ">"
         children = node.get("children", [])
         status = node.get("status", "idle")
-        active_light = cfg.STATUS_TO_ACTIVE.get(status, "red")
+        active_light = cfg.STATUS_TO_ACTIVE.get(status, "blue")
         tag = f"parent_{name}"
 
         # Background
@@ -343,10 +343,10 @@ class ProjectTrafficApp:
                                 tags=("content", tag))
 
         # 3 mini lights (right-aligned)
-        light_cx = {"red": 100, "yellow": 122, "green": 144}
+        light_cx = {"blue": 100, "yellow": 122, "green": 144}
         cy = y0 + 32
         RING_R = 9
-        for lname in ["red", "yellow", "green"]:
+        for lname in ["blue", "yellow", "green"]:
             cx = light_cx[lname]
             is_active = (lname == active_light)
             c = cfg.LIGHT_CONFIG[lname]
@@ -385,7 +385,7 @@ class ProjectTrafficApp:
         if indent is None:
             indent = cfg.CHILD_INDENT
         status = node.get("status", "idle")
-        active_light = cfg.STATUS_TO_ACTIVE.get(status, "red")
+        active_light = cfg.STATUS_TO_ACTIVE.get(status, "blue")
         tag = f"child_{name}"
 
         # Background
@@ -414,10 +414,10 @@ class ProjectTrafficApp:
                                 tags=("content", tag))
 
         # 3 mini lights (right-aligned, shifted by indent)
-        light_cx = {"red": 100 + indent - 5, "yellow": 122 + indent - 5, "green": 144 + indent - 5}
+        light_cx = {"blue": 100 + indent - 5, "yellow": 122 + indent - 5, "green": 144 + indent - 5}
         cy = y0 + 28
         RING_R = 8
-        for lname in ["red", "yellow", "green"]:
+        for lname in ["blue", "yellow", "green"]:
             cx = light_cx[lname]
             is_active = (lname == active_light)
             c = cfg.LIGHT_CONFIG[lname]

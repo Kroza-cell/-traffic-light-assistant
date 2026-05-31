@@ -117,7 +117,7 @@ class ProjectWindow:
 
         # 3 big lights
         self._light_tags = {}
-        light_names = ["red", "yellow", "green"]
+        light_names = ["blue", "yellow", "green"]
         for i, lname in enumerate(light_names):
             y_top = cfg.BIG_LIGHT_TOP + i * cfg.BIG_LIGHT_SPACING + 60
             cy = y_top + cfg.BIG_LIGHT_CY_OFFSET
@@ -161,8 +161,8 @@ class ProjectWindow:
 
     def _apply_light(self, status: str):
         """Update the 3 lights and status text."""
-        light_names = ["red", "yellow", "green"]
-        active = cfg.STATUS_TO_ACTIVE.get(status, "red")
+        light_names = ["blue", "yellow", "green"]
+        active = cfg.STATUS_TO_ACTIVE.get(status, "blue")
         c = cfg.LIGHT_CONFIG
         RR, G1R, G2R, COR = cfg.BIG_RING_R, cfg.BIG_GLOW1_R, cfg.BIG_GLOW2_R, cfg.BIG_CORE_R
 

@@ -182,12 +182,12 @@ TEXTS = {
     },
 }
 
-LIGHT_LABEL_KEY   = {"red": "light_idle", "yellow": "light_working", "green": "light_complete"}
-STATUS_TO_ACTIVE  = {"idle": "red", "working": "yellow", "done": "green"}
+LIGHT_LABEL_KEY   = {"blue": "light_idle", "yellow": "light_working", "green": "light_complete"}
+STATUS_TO_ACTIVE  = {"idle": "blue", "working": "yellow", "done": "green"}
 STATUS_TEXT_KEY   = {"idle": "idle", "working": "working", "done": "complete"}
-STATUS_COLORS     = {"idle": "#ff1a1a", "working": "#ffcc00", "done": "#00ff44"}
+STATUS_COLORS     = {"idle": "#3399ff", "working": "#ffcc00", "done": "#00ff44"}
 LIGHT_CONFIG      = {
-    "red":    {"active": "#ff1a1a", "dim": "#2a0000", "glow": "#ff4444"},
+    "blue":   {"active": "#3399ff", "dim": "#001a33", "glow": "#66bbff"},
     "yellow": {"active": "#ffcc00", "dim": "#2a2000", "glow": "#ffee44"},
     "green":  {"active": "#00ff44", "dim": "#002a00", "glow": "#44ff66"},
 }
