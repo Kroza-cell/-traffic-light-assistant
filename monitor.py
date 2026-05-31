@@ -34,6 +34,9 @@ class ProjectWindow:
         self.win.configure(bg="#0d0d0d")
         self.win.overrideredirect(True)
         self.win.attributes("-topmost", True)
+        # Windows: overrideredirect needs this to receive keyboard focus
+        if sys.platform == "win32":
+            self.win.after(50, self._enable_keyboard_focus)
         self.win.geometry(f"{cfg.SINGLE_WINDOW_WIDTH}x{cfg.SINGLE_WINDOW_HEIGHT}")
 
         # Drag state
@@ -48,23 +51,30 @@ class ProjectWindow:
         self._build_ui()
         self._apply_light(status)
 
-        # Bindings
-        self.win.bind("<Delete>", lambda e: self._close_self())
-        # Keyboard shortcuts (work when window has focus — click to focus)
-        self.win.bind("<KeyPress-1>", lambda e: self.set_status("idle"))
-        self.win.bind("<KeyPress-2>", lambda e: self.set_status("working"))
-        self.win.bind("<KeyPress-3>", lambda e: self.set_status("done"))
-        self.win.bind("<KeyPress-i>", lambda e: self.set_status("idle"))
-        self.win.bind("<KeyPress-w>", lambda e: self.set_status("working"))
-        self.win.bind("<KeyPress-d>", lambda e: self.set_status("done"))
-        self.win.bind("<KeyPress-l>", lambda e: self.monitor.toggle_language())
-        self.win.bind("<KeyPress-a>", lambda e: self.monitor.toggle_autostart())
-        self.win.bind("<KeyPress-Escape>", lambda e: self._close_self())
-        # Right-click: bind to both window and canvas for robustness
+        # Keyboard: bind to Canvas (focusable), not window (unfocusable with overrideredirect)
+        self.canvas.configure(takefocus=True)
+
+        def _kc(status):
+            return lambda e: self.set_status(status)
+        self.canvas.bind("<KeyPress-1>", _kc("idle"))
+        self.canvas.bind("<KeyPress-2>", _kc("working"))
+        self.canvas.bind("<KeyPress-3>", _kc("done"))
+        self.canvas.bind("<KeyPress-i>", _kc("idle"))
+        self.canvas.bind("<KeyPress-w>", _kc("working"))
+        self.canvas.bind("<KeyPress-d>", _kc("done"))
+        self.canvas.bind("<KeyPress-l>", lambda e: self.monitor.toggle_language())
+        self.canvas.bind("<KeyPress-a>", lambda e: self.monitor.toggle_autostart())
+        self.canvas.bind("<Delete>", lambda e: self._close_self())
+        self.canvas.bind("<KeyPress-Escape>", lambda e: self._close_self())
+
+        # Right-click: bind to both window and canvas
         self.win.bind("<Button-3>", self._on_right_click)
         self.canvas.bind("<Button-3>", self._on_right_click)
         # Left-click drag via tag_bind so it doesn't interfere with close button
+        # Left-click: focus canvas (for keyboard) + start drag
+        self.canvas.bind("<ButtonPress-1>", lambda e: self.canvas.focus_set(), add="+")
         self.canvas.tag_bind("ui", "<Button-1>", self._start_drag)
+        self.canvas.tag_bind("ui", "<Button-1>", lambda e: self.canvas.focus_set(), add="+")
         self.canvas.tag_bind("ui", "<B1-Motion>", self._on_drag)
         # Also bind right-click on ui items to ensure it always fires
         self.canvas.tag_bind("ui", "<Button-3>", self._on_right_click)
@@ -305,6 +315,24 @@ class ProjectWindow:
             except Exception:
                 pass
             self._cd_timer = None
+
+    # ── Windows Keyboard Focus Fix ────────────────────────────────────
+
+    def _enable_keyboard_focus(self):
+        """On Windows, overrideredirect windows don't get keyboard focus.
+        Use Windows API to remove WS_EX_NOACTIVATE from extended style."""
+        try:
+            import ctypes
+            from ctypes import wintypes
+            GWL_EXSTYLE = -20
+            WS_EX_NOACTIVATE = 0x08000000
+            hwnd = int(self.win.frame(), 16)
+            user32 = ctypes.windll.user32
+            current = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            if current & WS_EX_NOACTIVATE:
+                user32.SetWindowLongW(hwnd, GWL_EXSTYLE, current & ~WS_EX_NOACTIVATE)
+        except Exception:
+            pass
 
     # ── Close ─────────────────────────────────────────────────────────
 
