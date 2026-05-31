@@ -1,33 +1,32 @@
-# Traffic Light Desktop Assistant
+# Traffic Light Desktop Assistant (Multi-Agent)
 
-> Real-time Claude Code work status monitor with traffic light UI
+> Real-time Claude Code work status monitor — supports multiple agents
 
-## What it does
-
-A small always-on-top desktop widget that shows your current work status using traffic lights:
+Each agent gets a compact card with 3 mini traffic lights:
 
 | Light | Status | Meaning |
 |-------|--------|---------|
-| Red | Idle | Waiting for new tasks |
+| Red | Idle | Waiting for tasks |
 | Yellow | Working | Currently processing |
 | Green | Complete | Task finished |
 
 ## Preview
 
 ```
-     +------------------+
-     |  Claude Status  X|
-     |------------------|
-     |                  |
-     |    [Red]         |  <-- IDLE (lights up red)
-     |                  |
-     |    [Yellow]      |  <-- WORKING (lights up yellow)
-     |                  |
-     |    [Green]       |  <-- COMPLETE (lights up green)
-     |                  |
-     |------------------|
-     | RED - Idle       |
-     +------------------+
++-----------------------------------+
+| Claude Agents               +  X  |
+|-----------------------------------|
+|  default       (o) (o) (o)        |
+|                  Idle             |
+|-----------------------------------|
+|  reviewer      (o) (o) (o)        |
+|                Working            |
+|-----------------------------------|
+|  tester        (o) (o) (o)        |
+|                Complete           |
++-----------------------------------+
+|  3 agent(s) | 1 working           |
++-----------------------------------+
 ```
 
 ## Requirements
@@ -45,36 +44,65 @@ A small always-on-top desktop widget that shows your current work status using t
 python traffic_light.py
 ```
 
-### Set status from command line
+### CLI Commands
 
 ```bash
-python status_updater.py idle      # Red light
-python status_updater.py working   # Yellow light
-python status_updater.py done      # Green light
+# Set status for default agent
+python status_updater.py idle
+python status_updater.py working
+python status_updater.py done
+
+# Set status for a specific agent
+python status_updater.py working --agent reviewer
+python status_updater.py done -a tester
+
+# List all agents
+python status_updater.py list
+
+# Remove an agent
+python status_updater.py remove tester
 ```
 
-### Right-click menu
+### GUI Controls
 
-Right-click the traffic light window to switch status directly.
+| Action | How |
+|--------|-----|
+| Switch status | Right-click an agent card → select status |
+| Add agent | Click **+** button or right-click → Add Agent |
+| Remove agent | Right-click the agent card → Remove Agent |
+| Move window | Left-click and drag anywhere |
+| Close | Click **X** or right-click → Exit |
 
-## How it works
+## How It Works
 
-The GUI reads `~/.claude/desk_assistant_status.json` every second. Any external tool (including Claude Code itself) can write to this file to sync the light status.
+The GUI reads `~/.claude/desk_assistant_status.json` every second. Any external tool (including Claude Code itself) can write to this file to sync all agents' statuses.
 
-### Status file format
+### Status File Format
 
 ```json
 {
-  "status": "working",
-  "timestamp": "2026-05-31T11:11:26.202734",
-  "source": "status_updater_cli"
+  "agents": {
+    "default": {
+      "status": "idle",
+      "timestamp": "2026-05-31T12:00:00",
+      "source": "status_updater_cli"
+    },
+    "reviewer": {
+      "status": "working",
+      "timestamp": "2026-05-31T12:01:00",
+      "source": "status_updater_cli"
+    }
+  }
 }
 ```
+
+Old single-agent format is auto-migrated on first read.
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `traffic_light.py` | Main GUI application |
-| `status_updater.py` | CLI tool to update status |
+| `traffic_light.py` | Main GUI — multi-agent card layout |
+| `status_updater.py` | CLI tool — set/list/remove agents |
+| `config.py` | Shared constants and file I/O |
 | `run.bat` | Windows quick-launch script |
